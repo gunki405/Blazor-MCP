@@ -1,0 +1,70 @@
+﻿@page "/"
+@inject LanguageService LangService
+
+<PageTitle>Home</PageTitle>
+
+<MudPaper Class="m-2 d-flex flex-column" Style="height: 80vh;">
+    <div style="flex: 1; overflow-y: auto;">
+        <MudList T="ChatMessage">
+            @foreach (var msg in messages)
+            {
+                <MudListItem>
+                    <MudText Color="@(msg.Sender == "AI" ? Color.Primary : Color.Default)">
+                        <b>@msg.Sender:</b> @msg.Message
+                    </MudText>
+                </MudListItem>
+            }
+        </MudList>
+    </div>
+</MudPaper>
+
+<MudPaper Class="m-1 fixed-bottom-bar" Elevation="1">
+    <MudGrid Class="m-2">
+        <MudItem xs="9">
+            <MudTextField @bind-Value="userInput" Label="@(Loc["Imput_Message"])" />
+        </MudItem>
+        <MudItem xs="3">
+            <MudButton Class="m-1" Variant="Variant.Filled" OnClick="SendMessage" Color="Color.Primary">
+                @Loc["Send"]
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@code {
+    string userInput = "";
+    List<ChatMessage> messages = new();
+
+    protected override void OnInitialized()
+    {
+        LangService.OnLanguageChanged += RefreshUI;
+    }
+
+    void RefreshUI()
+    {
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        LangService.OnLanguageChanged -= RefreshUI;
+    }
+
+    async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(userInput)) return;
+
+        messages.Add(new ChatMessage { Sender = "User", Message = userInput, Timestamp = DateTime.Now });
+
+        var aiResponse = await GetAIResponse(userInput);
+        messages.Add(new ChatMessage { Sender = "AI", Message = aiResponse, Timestamp = DateTime.Now });
+
+        userInput = "";
+        StateHasChanged();
+    }
+
+    async Task<string> GetAIResponse(string input)
+    {
+        return "그렇게 생각할 수도 있겠네!";
+    }
+}

@@ -1,0 +1,8 @@
+﻿.fixed-bottom-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background-color: white; /* 배경색 없으면 투명하게 겹침 */
+    z-index: 1000; /* 상위에 나오도록 */
+}
