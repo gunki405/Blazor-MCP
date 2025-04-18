@@ -1,42 +1,73 @@
 ﻿@page "/"
 @inject LanguageService LangService
+@inject ChatBotService chatBotService
+@inject HttpClient Http
 
 <PageTitle>Home</PageTitle>
 
-<MudPaper Class="m-2 d-flex flex-column" Style="height: 80vh;">
-    <div style="flex: 1; overflow-y: auto;">
-        <MudList T="ChatMessage">
-            @foreach (var msg in messages)
-            {
-                <MudListItem>
-                    <MudText Color="@(msg.Sender == "AI" ? Color.Primary : Color.Default)">
-                        <b>@msg.Sender:</b> @msg.Message
-                    </MudText>
-                </MudListItem>
-            }
-        </MudList>
+<MudPaper Class="m-2 d-flex flex-column" Style="height: 75vh;">
+    <MudList T="ChatMessage" Style="overflow: auto;">
+        @foreach (var msg in messages)
+        {
+            <MudListItem>
+                @if (msg.Sender == "AI")
+                {
+                    <MudPaper Class="m-0 p-2 justify-content-start align-start" Elevation="1">
+                        <MudStack>
+                            <MudText Color="Color.Default">
+                                <b>@msg.Sender</b> [<i>@msg.Timestamp.ToString("g")</i>]
+                            </MudText>
+                            <MudText Class="@(msg.Progressing ? "blinking" : "")" Color="Color.Primary">
+                                @msg.Message
+                            </MudText>
+                        </MudStack>
+                    </MudPaper>
+                }
+                else
+                {
+                    <MudPaper Class="m-0 p-2 justify-content-end align-end" Elevation="1">
+                        <MudStack>
+                            <MudText Color="Color.Default">
+                                <b>@msg.Sender</b> [<i>@msg.Timestamp.ToString("g")</i>]
+                            </MudText>
+                            <MudText Color="Color.Default">
+                                @msg.Message
+                            </MudText>
+                        </MudStack>
+                    </MudPaper>
+                }
+            </MudListItem>
+        }
+    </MudList>
+</MudPaper>
+
+<MudPaper Class="m-2 fixed-bottom-bar" Elevation="1">
+    <div class="m-2 p-2">
+        <MudStack Row="true">
+            <MudTextField @bind-Value="userInput" Label="@(Loc["Imput_Message"])" Class="w-60" />
+
+            <MudButton Class="m-1 w-40 h-100" Disabled="bIsProcessing" Variant="Variant.Filled" OnClick="SendMessage" Color="Color.Primary">
+                @if (bIsProcessing)
+                {
+                    <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                }
+                else
+                {
+                    <MudText>@Loc["Send"] </MudText>
+                }
+            </MudButton>
+        </MudStack>
     </div>
 </MudPaper>
 
-<MudPaper Class="m-1 fixed-bottom-bar" Elevation="1">
-    <MudGrid Class="m-2">
-        <MudItem xs="9">
-            <MudTextField @bind-Value="userInput" Label="@(Loc["Imput_Message"])" />
-        </MudItem>
-        <MudItem xs="3">
-            <MudButton Class="m-1" Variant="Variant.Filled" OnClick="SendMessage" Color="Color.Primary">
-                @Loc["Send"]
-            </MudButton>
-        </MudItem>
-    </MudGrid>
-</MudPaper>
-
 @code {
+    private bool bIsProcessing;
     string userInput = "";
     List<ChatMessage> messages = new();
 
     protected override void OnInitialized()
     {
+        bIsProcessing = false;
         LangService.OnLanguageChanged += RefreshUI;
     }
 
@@ -52,19 +83,48 @@
 
     async Task SendMessage()
     {
-        if (string.IsNullOrWhiteSpace(userInput)) return;
+        if (string.IsNullOrWhiteSpace(userInput))
+        {
+            return;
+        }
 
-        messages.Add(new ChatMessage { Sender = "User", Message = userInput, Timestamp = DateTime.Now });
-
-        var aiResponse = await GetAIResponse(userInput);
-        messages.Add(new ChatMessage { Sender = "AI", Message = aiResponse, Timestamp = DateTime.Now });
-
+        bIsProcessing = true;
+        messages.Add(new ChatMessage { Sender = "User", Message = userInput, Progressing = false, Timestamp = DateTime.Now });
+        messages.Add(new ChatMessage { Sender = "AI", Message = "処理中。。。", Progressing = true, Timestamp = DateTime.Now });
+        var aiResponse = GetAIResponse(userInput);
         userInput = "";
+        StateHasChanged();
+
+        try
+        {
+            ChatResult aiChat = await aiResponse;
+            bIsProcessing = false;
+            messages.RemoveAt(messages.Count - 1);
+            messages.Add(new ChatMessage { Sender = "AI", Message = aiChat.Result, Progressing = false, Timestamp = DateTime.Now });
+        }
+        catch (Exception ex)
+        {
+            messages.RemoveAt(messages.Count - 1);
+            messages.Add(new ChatMessage { Sender = "System", Message = ex.Message, Progressing = false, Timestamp = DateTime.Now });
+        }
+
         StateHasChanged();
     }
 
-    async Task<string> GetAIResponse(string input)
+    async Task<ChatResult> GetAIResponse(string input)
     {
-        return "그렇게 생각할 수도 있겠네!";
+        try
+        {
+            return await chatBotService.SendMessageAsync(input, LangService.GetCurrentCulture());
+        }
+        catch(Exception ex)
+        {
+            throw new Exception("Error while getting AI response", ex);
+        }
+    }
+
+    public class AIResponse
+    {
+        public string Text { get; set; }
     }
 }
